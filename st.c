@@ -3814,8 +3814,8 @@ draw(void)
 	wl.framecb = wl_surface_frame(wl.surface);
 	wl_callback_add_listener(wl.framecb, &framelistener, NULL);
 	wld_flush(wld.renderer);
-	wl_surface_attach(wl.surface, wl.buffer, 0, 0);
 	wl_surface_commit(wl.surface);
+	wl_surface_attach(wl.surface, wl.buffer, 0, 0);
 	/* need to wait to destroy the old buffer until we commit the new
 	 * buffer */
 	if (wld.oldbuffer) {
