@@ -575,70 +575,6 @@ static struct wl_data_offer_listener dataofferlistener = { dataofferoffer };
 static struct wl_data_source_listener datasrclistener =
 	{ datasrctarget, datasrcsend, datasrccancelled };
 
-static void
-xdg_toplevel_handle_configure(void *data, struct zxdg_toplevel_v6 *xdg_toplevel,
-			      int32_t width, int32_t height,
-			      struct wl_array *states)
-{
-	uint32_t *p;
-
-	//wl.maximized = 0;
-	//wl.fullscreen = 0;
-	//wl.resizing = 0;
-	//wl.focused = 0;
-
-	//wl_array_for_each(p, states) {
-	//	uint32_t state = *p;
-	//	switch (state) {
-	//	case ZXDG_TOPLEVEL_V6_STATE_MAXIMIZED:
-	//		window->maximized = 1;
-	//		break;
-	//	case ZXDG_TOPLEVEL_V6_STATE_FULLSCREEN:
-	//		window->fullscreen = 1;
-	//		break;
-	//	case ZXDG_TOPLEVEL_V6_STATE_RESIZING:
-	//		window->resizing = 1;
-	//		break;
-	//	case ZXDG_TOPLEVEL_V6_STATE_ACTIVATED:
-	//		window->focused = 1;
-	//		break;
-	//	default:
-	//		/* Unknown state */
-	//		break;
-	//	}
-	//}
-
-	//if (window->frame) {
-	//	if (window->maximized) {
-	//		frame_set_flag(window->frame->frame, FRAME_FLAG_MAXIMIZED);
-	//	} else {
-	//		frame_unset_flag(window->frame->frame, FRAME_FLAG_MAXIMIZED);
-	//	}
-
-	//	if (window->focused) {
-	//		frame_set_flag(window->frame->frame, FRAME_FLAG_ACTIVE);
-	//	} else {
-	//		frame_unset_flag(window->frame->frame, FRAME_FLAG_ACTIVE);
-	//	}
-	//}
-
-	//if (width > 0 && height > 0) {
-	//	/* The width / height params are for window geometry,
-	//	 * but window_schedule_resize takes allocation. Add
-	//	 * on the shadow margin to get the difference. */
-	//	int margin = window_get_shadow_margin(window);
-
-	//	window_schedule_resize(window,
-	//			       width + margin * 2,
-	//			       height + margin * 2);
-	//} else if (window->saved_allocation.width > 0 &&
-	//	   window->saved_allocation.height > 0) {
-	//	window_schedule_resize(window,
-	//			       window->saved_allocation.width,
-	//			       window->saved_allocation.height);
-	//}
-}
-
 /* Globals */
 static DC dc;
 static Wayland wl;
@@ -698,11 +634,64 @@ xdg_toplevel_handle_close(void *data, struct zxdg_toplevel_v6 *xdg_surface)
 	exit(0);
 }
 
+static void
+xdg_toplevel_handle_configure(void *data, struct zxdg_toplevel_v6 *xdg_toplevel,
+			      int32_t width, int32_t height,
+			      struct wl_array *states)
+{
+	uint32_t *p;
+
+	//wl.maximized = 0;
+	//wl.fullscreen = 0;
+	//wl.resizing = 0;
+	//wl.focused = 0;
+
+	//wl_array_for_each(p, states) {
+	//	uint32_t state = *p;
+	//	switch (state) {
+	//	case ZXDG_TOPLEVEL_V6_STATE_MAXIMIZED:
+	//		window->maximized = 1;
+	//		break;
+	//	case ZXDG_TOPLEVEL_V6_STATE_FULLSCREEN:
+	//		window->fullscreen = 1;
+	//		break;
+	//	case ZXDG_TOPLEVEL_V6_STATE_RESIZING:
+	//		window->resizing = 1;
+	//		break;
+	//	case ZXDG_TOPLEVEL_V6_STATE_ACTIVATED:
+	//		window->focused = 1;
+	//		break;
+	//	default:
+	//		/* Unknown state */
+	//		break;
+	//	}
+	//}
+
+	//if (window->frame) {
+	//	if (window->maximized) {
+	//		frame_set_flag(window->frame->frame, FRAME_FLAG_MAXIMIZED);
+	//	} else {
+	//		frame_unset_flag(window->frame->frame, FRAME_FLAG_MAXIMIZED);
+	//	}
+
+	//	if (window->focused) {
+	//		frame_set_flag(window->frame->frame, FRAME_FLAG_ACTIVE);
+	//	} else {
+	//		frame_unset_flag(window->frame->frame, FRAME_FLAG_ACTIVE);
+	//	}
+	//}
+
+	if (width > 0 && height > 0) {
+	    wl.w = width;
+	    wl.h = height;
+	}
+	//zxdg_surface_v6_ack_configure(xdg_toplevel, serial);
+}
+
 static const struct zxdg_toplevel_v6_listener xdg_toplevel_listener = {
 	xdg_toplevel_handle_configure,
 	xdg_toplevel_handle_close,
 };
-
 
 ssize_t
 xwrite(int fd, const char *s, size_t len)
@@ -3449,6 +3438,10 @@ wlinit(void)
 	wl_registry_add_listener(registry, &reglistener, NULL);
 	wld.ctx = wld_wayland_create_context(wl.dpy, WLD_ANY);
 	wld.renderer = wld_create_renderer(wld.ctx);
+	if (!wld.renderer)
+		die("Can't create renderer\n");
+
+
 
 	wl_display_roundtrip(wl.dpy);
 
@@ -3493,6 +3486,14 @@ wlinit(void)
 	zxdg_toplevel_v6_add_listener(wl.xdgtoplevel,
 			&xdg_toplevel_listener, &wl);
 
+	wl_surface_commit(wl.surface);
+
+	union wld_object object;
+
+	wld.buffer = wld_create_buffer(wld.ctx, wl.w, wl.h,
+			WLD_FORMAT_XRGB8888, 0);
+	wld_export(wld.buffer, WLD_WAYLAND_OBJECT_BUFFER, &object);
+	wl.buffer = object.ptr;
 
 	wl.xkb.ctx = xkb_context_new(0);
 	wlresettitle();
@@ -3890,13 +3891,14 @@ draw(void)
 				wl.w, (y - y0) * wl.ch);
 	}
 
+	printf("wld.buffer: %x\n", wld.buffer);
 	wld_set_target_buffer(wld.renderer, wld.buffer);
 	drawregion(0, 0, term.col, term.row);
 	wl.framecb = wl_surface_frame(wl.surface);
 	wl_callback_add_listener(wl.framecb, &framelistener, NULL);
 	wld_flush(wld.renderer);
-	wl_surface_commit(wl.surface);
 	wl_surface_attach(wl.surface, wl.buffer, 0, 0);
+	wl_surface_commit(wl.surface);
 	/* need to wait to destroy the old buffer until we commit the new
 	 * buffer */
 	if (wld.oldbuffer) {
