@@ -519,7 +519,6 @@ static void ptraxis(void *, struct wl_pointer *, uint32_t, uint32_t,
 static void xdgshellping(void *, struct zxdg_shell_v6 *, uint32_t);
 static void xdgsurfconfigure(void *, struct zxdg_surface_v6 *,
 		uint32_t);
-static void xdgsurfclose(void *, struct zxdg_surface_v6 *);
 static void datadevoffer(void *, struct wl_data_device *,
 		struct wl_data_offer *);
 static void datadeventer(void *, struct wl_data_device *, uint32_t,
@@ -576,6 +575,70 @@ static struct wl_data_offer_listener dataofferlistener = { dataofferoffer };
 static struct wl_data_source_listener datasrclistener =
 	{ datasrctarget, datasrcsend, datasrccancelled };
 
+static void
+xdg_toplevel_handle_configure(void *data, struct zxdg_toplevel_v6 *xdg_toplevel,
+			      int32_t width, int32_t height,
+			      struct wl_array *states)
+{
+	uint32_t *p;
+
+	//wl.maximized = 0;
+	//wl.fullscreen = 0;
+	//wl.resizing = 0;
+	//wl.focused = 0;
+
+	//wl_array_for_each(p, states) {
+	//	uint32_t state = *p;
+	//	switch (state) {
+	//	case ZXDG_TOPLEVEL_V6_STATE_MAXIMIZED:
+	//		window->maximized = 1;
+	//		break;
+	//	case ZXDG_TOPLEVEL_V6_STATE_FULLSCREEN:
+	//		window->fullscreen = 1;
+	//		break;
+	//	case ZXDG_TOPLEVEL_V6_STATE_RESIZING:
+	//		window->resizing = 1;
+	//		break;
+	//	case ZXDG_TOPLEVEL_V6_STATE_ACTIVATED:
+	//		window->focused = 1;
+	//		break;
+	//	default:
+	//		/* Unknown state */
+	//		break;
+	//	}
+	//}
+
+	//if (window->frame) {
+	//	if (window->maximized) {
+	//		frame_set_flag(window->frame->frame, FRAME_FLAG_MAXIMIZED);
+	//	} else {
+	//		frame_unset_flag(window->frame->frame, FRAME_FLAG_MAXIMIZED);
+	//	}
+
+	//	if (window->focused) {
+	//		frame_set_flag(window->frame->frame, FRAME_FLAG_ACTIVE);
+	//	} else {
+	//		frame_unset_flag(window->frame->frame, FRAME_FLAG_ACTIVE);
+	//	}
+	//}
+
+	//if (width > 0 && height > 0) {
+	//	/* The width / height params are for window geometry,
+	//	 * but window_schedule_resize takes allocation. Add
+	//	 * on the shadow margin to get the difference. */
+	//	int margin = window_get_shadow_margin(window);
+
+	//	window_schedule_resize(window,
+	//			       width + margin * 2,
+	//			       height + margin * 2);
+	//} else if (window->saved_allocation.width > 0 &&
+	//	   window->saved_allocation.height > 0) {
+	//	window_schedule_resize(window,
+	//			       window->saved_allocation.width,
+	//			       window->saved_allocation.height);
+	//}
+}
+
 /* Globals */
 static DC dc;
 static Wayland wl;
@@ -627,6 +690,19 @@ typedef struct {
 /* Fontcache is an array now. A new font will be appended to the array. */
 static Fontcache frc[16];
 static int frclen = 0;
+
+static void
+xdg_toplevel_handle_close(void *data, struct zxdg_toplevel_v6 *xdg_surface)
+{
+	kill(pid, SIGHUP);
+	exit(0);
+}
+
+static const struct zxdg_toplevel_v6_listener xdg_toplevel_listener = {
+	xdg_toplevel_handle_configure,
+	xdg_toplevel_handle_close,
+};
+
 
 ssize_t
 xwrite(int fd, const char *s, size_t len)
@@ -3391,6 +3467,7 @@ wlinit(void)
 			wl.seat);
 	wl_data_device_add_listener(wl.datadev, &datadevlistener, NULL);
 
+
 	/* font */
 	if (!FcInit())
 		die("Could not init fontconfig.\n");
@@ -3412,6 +3489,10 @@ wlinit(void)
 	printf("w.shell %p wl.surface: %p\n", (void *)wl.shell, (void *)wl.surface);
 	wl.xdgsurface = zxdg_shell_v6_get_xdg_surface(wl.shell, wl.surface);
 	zxdg_surface_v6_add_listener(wl.xdgsurface, &xdgsurflistener, NULL);
+	wl.xdgtoplevel = zxdg_surface_v6_get_toplevel(wl.xdgsurface);
+	zxdg_toplevel_v6_add_listener(wl.xdgtoplevel,
+			&xdg_toplevel_listener, &wl);
+
 
 	wl.xkb.ctx = xkb_context_new(0);
 	wlresettitle();
@@ -3944,14 +4025,13 @@ void
 regglobal(void *data, struct wl_registry *registry, uint32_t name,
           const char *interface, uint32_t version)
 {
-    wl.shell = NULL;
-
 	if (strcmp(interface, "wl_compositor") == 0) {
 		wl.cmp = wl_registry_bind(registry, name,
 				&wl_compositor_interface, 3);
 	} else if (strcmp(interface, "zxdg_shell_v6") == 0) {
 		printf("has been called: %s\n", interface);
 
+		wl.shell = NULL;
 		wl.shell = wl_registry_bind(registry, name,
 				&zxdg_shell_v6_interface, 1);
 		zxdg_shell_v6_add_listener(wl.shell, &xdgshelllistener, NULL);
@@ -4308,18 +4388,14 @@ xdgsurfconfigure(void *data, struct zxdg_surface_v6 *surf,
                  uint32_t serial)
 {
 	zxdg_surface_v6_ack_configure(surf, serial);
+	printf("configured %d\n", wl.configured);
+
 	if (wl.configured)
 		ttyresize();
 	else
 		wl.configured = true;
-}
 
-void
-xdgsurfclose(void *data, struct zxdg_surface_v6 *surf)
-{
-	/* Send SIGHUP to shell */
-	kill(pid, SIGHUP);
-	exit(0);
+	printf("configured after %d\n", wl.configured);
 }
 
 void
