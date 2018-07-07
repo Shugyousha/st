@@ -3,7 +3,7 @@
 
 include config.mk
 
-SRC = st.c xdg-shell-unstable-v5-protocol.c
+SRC = st.c wl.c xdg-shell-unstable-v5-protocol.c
 OBJ = ${SRC:.c=.o}
 
 all: options st
@@ -31,7 +31,7 @@ st.o: xdg-shell-unstable-v5-client-protocol.h
 	@echo CC $<
 	@${CC} -c ${CFLAGS} $<
 
-${OBJ}: config.h config.mk
+${OBJ}: wl.h config.h config.mk
 
 st: ${OBJ}
 	@echo CC -o $@
